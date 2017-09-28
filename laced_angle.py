@@ -16,6 +16,7 @@ import sys
 import os
 from shutil import copyfile
 import odbAccess
+import EN_tools as en
 
 ##############INPUT DATA ####################
 
@@ -91,6 +92,7 @@ os.mkdir(IDstring)
 # Copy necessary files to the new directory
 copyfile('abq_toolset.py', './'+IDstring+'/abq_toolset.py')
 copyfile('laced_angle.py', './'+IDstring+'/laced_angle.py')
+copyfile('EN_tools.py', './'+IDstring+'/EN_tools.py')
 #copyfile('GN_Riks_killer.f', './'+IDstring+'/GN_Riks_killer.f')
 
 # Change the working directory
@@ -161,10 +163,6 @@ Iyz = A1 * (yg1 - ytp) * (yg2 - ytp) * 2 + A3 * (yg3 - ytp) ** 2 - A4 * (yg4 - y
 # Principal moments and X-Y direction about centroid
 I1 = I_z + abs(Iyz)
 I2 = I_z - abs(Iyz)
-
-# Polar radius of gyration
-i_pol = sqrt((I1 + I2) / A_tot)
-i_zero = sqrt(i_pol ** 2 + 2 * ytp ** 2)
 
 # Bending stiffness E*I
 E_I1 = E_steel * I1
@@ -243,46 +241,9 @@ A_eff = 2 * A1 * rho + A3 - A4
 I_torsion = 2 * (t_shell ** 3 * l_leg / 3)
 I_warp = 0.
 
-# Independent critical loads for flexural and torsional modes
-N_cr_max = (pi ** 2 * E_steel * I1) / (l_tot ** 2)
-N_cr_min = (pi ** 2 * E_steel * I2) / (l_tot ** 2)
-N_cr_tor = (1 / i_zero ** 2) * (G_steel * I_torsion + (pi ** 2 * E_steel * I_warp / l_tot ** 2))
-
-# Coefficients of the 3rd order equation for the critical loads
-# The equation is in the form aaaa * N ^ 3 - bbbb * N ^ 2 + cccc * N - dddd
-aaaa = i_zero ** 2 - ytp ** 2 - ytp ** 2
-bbbb = ((N_cr_max + N_cr_min + N_cr_tor) * i_zero ** 2) - (N_cr_min * ytp ** 2) - (N_cr_max * ytp ** 2)
-cccc = i_zero ** 2 * (N_cr_min * N_cr_max) + (N_cr_min * N_cr_tor) + (N_cr_tor * N_cr_max)
-dddd = i_zero ** 2 * N_cr_min * N_cr_max * N_cr_tor
-
-DD = (4 * (-bbbb ** 2 + 3 * aaaa * cccc) ** 3 + (2 * bbbb ** 3 - 9 * aaaa * bbbb * cccc + 27 * aaaa ** 2 * dddd) ** 2)
-if (DD < 0):
-   DD = -1. * DD
-   cf = 1j
-else:
-   cf = 1
-
-# Critical load
-# The following N_cr formulas are the roots of the 3rd order equation of the global critical load
-N_cr_1 = bbbb/(3.*aaaa) - (2**(1./3)*(-bbbb**2 + 3*aaaa*cccc))/                     \
-    (3.*aaaa*(2*bbbb**3 - 9*aaaa*bbbb*cccc + 27*aaaa**2*dddd +                      \
-    (cf*sqrt(DD)))**(1./3)) + (2*bbbb**3 - 9*aaaa*bbbb*cccc + 27*aaaa**2*dddd +     \
-    (cf*sqrt(DD)))**(1./3)/(3.*2**(1./3)*aaaa)
-
-N_cr_2 = bbbb/(3.*aaaa) + ((1 + (0 + 1j)*sqrt(3))*(-bbbb**2 + 3*aaaa*cccc))/        \
-    (3.*2**(2./3)*aaaa*(2*bbbb**3 - 9*aaaa*bbbb*cccc + 27*aaaa**2*dddd +            \
-    (cf*sqrt(DD)))**(1./3)) - ((1 - (0 + 1j)*sqrt(3))*                              \
-    (2*bbbb**3 - 9*aaaa*bbbb*cccc + 27*aaaa**2*dddd +                               \
-    (cf*sqrt(DD)))**(1./3))/(6.*2**(1./3)*aaaa)
-
-N_cr_3 = bbbb/(3.*aaaa) + ((1 - (0 + 1j)*sqrt(3))*(-bbbb**2 + 3*aaaa*cccc))/        \
-    (3.*2**(2./3)*aaaa*(2*bbbb**3 - 9*aaaa*bbbb*cccc + 27*aaaa**2*dddd +            \
-    (cf*sqrt(DD)))**(1./3)) - ((1 + (0 + 1j)*sqrt(3))*                              \
-    (2*bbbb**3 - 9*aaaa*bbbb*cccc + 27*aaaa**2*dddd +                               \
-    (cf*sqrt(DD)))**(1./3))/(6.*2**(1./3)*aaaa)
-
-# Lowest root is the critical load
-N_cr = min(abs(N_cr_1), abs(N_cr_2), abs(N_cr_3), N_cr_min, N_cr_tor)
+# Calculate the critical flexural-torsional load using the equivalent
+# function from EN_tools module.
+N_cr = en.N_cr_flex_tor(l_tot, A_eff, I_y, I_z, Iyz, I_torsion, I_warp, y_sc=ytp, z_sc=ytp)
 
 # Design plastic resistance
 N_pl_rd = fy_steel * A_eff
